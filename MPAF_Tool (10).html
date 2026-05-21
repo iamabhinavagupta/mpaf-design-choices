@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MPAF — Design Choices & Risk Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ── */
+:root {
+  --bg:    #0F1117;
+  --bg2:   #13151E;
+  --bg3:   #0A0C12;
+  --card:  rgba(255,255,255,.05);
+  --card2: rgba(255,255,255,.09);
+  --bdr:   rgba(255,255,255,.09);
+  --bdr2:  rgba(255,255,255,.20);
+  --cream: rgba(255,255,255,.88);
+  --muted: rgba(255,255,255,.44);
+  --dim:   rgba(255,255,255,.20);
+  --co:  #E8826B;  --co-d:  rgba(232,130,107,.14);
+  --mi:  #F0C96B;  --mi-d:  rgba(240,201,107,.14);
+  --ge:  #7EB5CF;  --ge-d:  rgba(126,181,207,.16);
+  --poc: #5B9BF0;  --poc-d: rgba(91,155,240,.14);
+  --acc: #A8D8B8;
+  --serif: 'DM Serif Display', Georgia, serif;
+  --sans:  'DM Sans', system-ui, sans-serif;
+}
+
+/* ── RESET & BASE ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--cream);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 10% 5%, rgba(232,130,107,.04) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 90% 90%, rgba(126,181,207,.04) 0%, transparent 60%),
+    repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255,255,255,.007) 80px, rgba(255,255,255,.007) 81px);
+}
+.z { position: relative; z-index: 1; }
+
+/* ── HEADER ── */
+header {
+  padding: 1.75rem 3.5rem 0;
+  border-bottom: 1px solid var(--bdr);
+}
+.hrow {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 2rem; padding-bottom: 1.25rem;
+}
+.kicker {
+  font-size: 10px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--acc); margin-bottom: .45rem;
+}
+h1 {
+  font-family: var(--serif); font-size: 1.85rem;
+  font-weight: 400; line-height: 1.2; color: white;
+}
+h1 em { font-style: italic; color: var(--acc); }
+.hmeta { font-size: 11px; color: var(--dim); text-align: right; line-height: 1.9; }
+
+/* ── TABS ── */
+.tabs { display: flex; }
+.tbtn {
+  padding: .7rem 2rem; font-family: var(--sans); font-size: 13px;
+  font-weight: 500; color: var(--muted); background: none; border: none;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all .2s; margin-bottom: -1px;
+}
+.tbtn:hover { color: var(--cream); }
+.tbtn.on { color: var(--acc); border-bottom-color: var(--acc); }
+.tc { display: none; }
+.tc.on { display: block; }
+
+/* ════════════════════════════════════════════════
+   TAB 1 — DESIGN CHOICES
+════════════════════════════════════════════════ */
+
+/* context strip */
+.ctx3 {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--bdr);
+}
+.cx { padding: 1.5rem 2rem; border-right: 1px solid var(--bdr); }
+.cx:last-child { border-right: none; }
+.cxl {
+  font-size: 10px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--acc); margin-bottom: .5rem;
+}
+.cxt { font-size: 12.5px; color: var(--muted); line-height: 1.65; }
+.cxt strong { color: var(--cream); }
+
+/* sticky legend */
+.sbar {
+  background: var(--bg2); border-bottom: 1px solid var(--bdr);
+  position: sticky; top: 0; z-index: 10;
+}
+.sbar-in {
+  max-width: 900px; margin: 0 auto;
+  padding: .65rem 3.5rem;
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+}
+.leg { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); font-weight: 500; }
+.ldot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.sbbtns { display: flex; gap: 6px; margin-left: auto; }
+.sbbtn {
+  background: var(--card); border: 1px solid var(--bdr); color: var(--muted);
+  font-family: var(--sans); font-size: 12px; padding: 5px 13px;
+  border-radius: 4px; cursor: pointer; transition: all .15s;
+}
+.sbbtn:hover { background: var(--card2); color: var(--cream); }
+
+/* timeline under legend */
+.tlstrip {
+  max-width: 900px; margin: 0 auto;
+  padding: 0 3.5rem .5rem;
+  display: flex; align-items: center; gap: 0;
+}
+.tls { display: flex; align-items: center; gap: 7px; flex: 1; }
+.tldot { width: 9px; height: 9px; border-radius: 50%; }
+.tll { font-size: 11px; font-weight: 600; color: var(--cream); }
+.tld { font-size: 10px; color: var(--muted); margin-left: 3px; }
+.tlarr { color: var(--dim); font-size: 12px; margin: 0 12px; }
+
+/* main content */
+.dcmain { max-width: 900px; margin: 0 auto; padding: 2rem 3.5rem 4rem; }
+
+/* block */
+.dcblock { margin-bottom: 2.5rem; }
+.dcbh { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+.dcbnum { font-family: var(--serif); font-size: 1.35rem; color: var(--dim); width: 24px; flex-shrink: 0; }
+.dcbt {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--bdr); flex: 1; padding-bottom: 5px;
+}
+
+/* dimension card */
+.dcdim {
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: 8px; padding: 1.1rem 1.4rem;
+  margin-bottom: 8px; transition: box-shadow .2s;
+}
+.dcdim:hover { box-shadow: 0 2px 20px rgba(0,0,0,.4); border-color: var(--bdr2); }
+.dcn { font-size: 13.5px; font-weight: 600; color: var(--cream); margin-bottom: .75rem; }
+
+/* track */
+.dctw { display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dcext { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.dcext.r { text-align: right; }
+.dcto { position: relative; height: 28px; display: flex; align-items: center; }
+.dctl { position: absolute; left: 0; right: 0; height: 3px; background: rgba(255,255,255,.12); border-radius: 2px; }
+
+/* handles */
+.dch {
+  position: absolute; width: 17px; height: 17px; border-radius: 50%;
+  cursor: grab; transform: translateX(-50%);
+  top: 50%; margin-top: -8.5px; touch-action: none; z-index: 2;
+  transition: box-shadow .15s, transform .1s;
+}
+.dch:active { cursor: grabbing; transform: translateX(-50%) scale(1.15); }
+.dch.mh {
+  background: var(--acc); border: 2.5px solid var(--bg);
+  box-shadow: 0 0 0 1.5px var(--acc), 0 2px 6px rgba(168,216,184,.35); z-index: 4;
+}
+.dch.ah {
+  background: var(--bg); border: 2.5px solid var(--mi);
+  box-shadow: 0 0 0 1.5px var(--mi), 0 2px 6px rgba(240,201,107,.3); z-index: 3;
+}
+.dch.ph {
+  background: var(--poc); border: 2.5px solid var(--bg);
+  box-shadow: 0 0 0 1.5px var(--poc); cursor: default; pointer-events: none; z-index: 2;
+}
+.dch.mh:hover { box-shadow: 0 0 0 4px rgba(168,216,184,.2), 0 2px 8px rgba(168,216,184,.4); }
+.dch.ah:hover { box-shadow: 0 0 0 4px rgba(240,201,107,.2), 0 2px 8px rgba(240,201,107,.35); }
+
+/* rationale */
+.dcrat {
+  font-size: 12px; color: var(--muted); line-height: 1.65;
+  border-top: 1px dashed var(--bdr); padding-top: 9px; margin-top: 2px;
+}
+
+/* summary table */
+.dcsum { margin-top: 2.5rem; }
+.dcsumt { font-family: var(--serif); font-size: 1.25rem; color: var(--cream); margin-bottom: 1rem; }
+.stbl { width: 100%; border-collapse: collapse; border: 1px solid var(--bdr); border-radius: 8px; overflow: hidden; }
+.stbl th {
+  padding: 9px 12px; font-size: 10px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase;
+  text-align: left; border-bottom: 2px solid var(--bdr);
+}
+.stbl th.h0 { background: rgba(255,255,255,.03); color: var(--muted); }
+.stbl th.h1 { background: var(--poc-d); color: var(--poc); }
+.stbl th.h2 { background: rgba(168,216,184,.1); color: var(--acc); }
+.stbl th.h3 { background: var(--mi-d); color: var(--mi); }
+.stbl td { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid var(--bdr); vertical-align: middle; }
+.stbl tr:last-child td { border-bottom: none; }
+.stbl tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+.tdim { font-weight: 500; color: var(--cream); }
+.tpoc { color: var(--poc); font-size: 11.5px; }
+.tmvp { color: var(--acc); font-size: 11.5px; }
+.tamb { color: var(--mi); font-size: 11.5px; }
+
+/* ════════════════════════════════════════════════
+   TAB 2 — RISK ARCHITECTURE
+════════════════════════════════════════════════ */
+
+/* narrative */
+.narr { padding: 2.5rem 3.5rem; border-bottom: 1px solid var(--bdr); }
+.narrt { font-family: var(--serif); font-size: 1.5rem; color: white; margin-bottom: 1.25rem; }
+.narr-body { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+.narr-p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+.narr-p strong { color: var(--cream); }
+
+/* flow cards */
+.flow { display: grid; grid-template-columns: 1fr 40px 1fr 40px 1fr; align-items: stretch; }
+.farr { display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 1.3rem; }
+.fcard { background: var(--card); border: 1px solid var(--bdr); border-radius: 10px; padding: 1.25rem 1.4rem; display: flex; flex-direction: column; }
+.fnum { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: .6rem; }
+.fhead { font-family: var(--serif); font-size: 1rem; color: white; margin-bottom: .85rem; line-height: 1.35; }
+
+/* goals */
+.goals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.goal-chip { background: rgba(255,255,255,.06); border-radius: 5px; padding: .35rem .6rem; display: flex; align-items: flex-start; gap: 6px; }
+.goal-n { font-size: 9px; font-weight: 700; color: var(--acc); flex-shrink: 0; margin-top: 1px; }
+.goal-t { font-size: 10.5px; color: var(--cream); line-height: 1.3; font-weight: 500; }
+
+/* indicator dots */
+.ind-wrap { display: flex; flex-direction: column; gap: 5px; }
+.ind-goal-lbl { font-size: 8.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.ind-dots { display: flex; flex-wrap: wrap; gap: 3px; }
+.ind-dot { width: 10px; height: 10px; border-radius: 2px; background: rgba(255,255,255,.18); }
+.ind-dot.scored { background: var(--acc); }
+.ind-legend { font-size: 10px; color: var(--dim); margin-top: .6rem; display: flex; gap: 12px; }
+.ind-legend span { display: flex; align-items: center; gap: 4px; }
+.ind-legend .dot-s { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--acc); }
+.ind-legend .dot-u { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: rgba(255,255,255,.18); }
+
+/* axes */
+.axes-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: .4rem; }
+.ax-chip { border-radius: 6px; padding: .6rem .85rem; border: 1px solid; }
+.ax-chip.co { background: var(--co-d); border-color: var(--co); }
+.ax-chip.mi { background: var(--mi-d); border-color: var(--mi); }
+.ax-chip.ge { background: var(--ge-d); border-color: var(--ge); }
+.ax-name { font-size: 11.5px; font-weight: 600; margin-bottom: .2rem; }
+.ax-chip.co .ax-name { color: var(--co); }
+.ax-chip.mi .ax-name { color: var(--mi); }
+.ax-chip.ge .ax-name { color: var(--ge); }
+.ax-desc { font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+
+/* arch main grid: LEFT panel, RIGHT cube */
+.arch { display: grid; grid-template-columns: 400px 1fr; min-height: calc(100vh - 380px); }
+
+/* LEFT: questions panel */
+.rpanel { border-right: 1px solid var(--bdr); background: var(--bg2); display: flex; flex-direction: column; overflow: hidden; }
+.rph { padding: 1.4rem 1.5rem .9rem; border-bottom: 1px solid var(--bdr); }
+.rpk { font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
+.rpt { font-family: var(--serif); font-size: 1.05rem; color: white; line-height: 1.3; }
+
+/* dimension tabs */
+.dtabs { display: flex; border-bottom: 1px solid var(--bdr); }
+.dtab {
+  flex: 1; padding: .65rem .25rem; font-size: 11px; font-weight: 500;
+  text-align: center; cursor: pointer; color: var(--muted);
+  border-bottom: 2px solid transparent; transition: all .2s; margin-bottom: -1px;
+}
+.dtab:hover { color: var(--cream); }
+.dtab.on[data-d=co] { color: var(--co); border-color: var(--co); }
+.dtab.on[data-d=mi] { color: var(--mi); border-color: var(--mi); }
+.dtab.on[data-d=ge] { color: var(--ge); border-color: var(--ge); }
+.dtab.on[data-d=all] { color: white; border-color: white; }
+
+/* panel body */
+.rpbody { flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; }
+.dsec { display: none; }
+.dsec.on { display: block; }
+.dintro { font-size: 12.5px; color: var(--muted); line-height: 1.65; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--bdr); }
+.dintro strong { color: var(--cream); }
+
+/* mini viz */
+.mviz { background: var(--bg3); border: 1px solid var(--bdr); border-radius: 8px; padding: 1rem; margin-bottom: 1.2rem; }
+.mvizl { font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: .75rem; display: flex; justify-content: space-between; align-items: center; }
+.viznote { font-size: 9px; font-style: italic; color: var(--dim); font-weight: 400; letter-spacing: 0; }
+.tl-chart { height: 110px; }
+.tl-chart svg, .bbl-chart svg { width: 100%; height: 100%; }
+.bbl-chart { height: 128px; }
+.geo-hm { display: grid; grid-template-columns: 68px repeat(3, 1fr); gap: 3px; }
+.geo-hd { font-size: 8.5px; color: var(--dim); text-align: center; padding: 2px; font-weight: 500; }
+.geo-cn { font-size: 9.5px; color: var(--muted); display: flex; align-items: center; font-weight: 500; }
+.geo-c { height: 20px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 8.5px; font-weight: 600; }
+.comb3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.combcard { background: var(--card); border-radius: 6px; padding: .6rem .7rem; border: 1px solid var(--bdr); }
+.combtit { font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .35rem; }
+.combfix { font-size: 10.5px; font-weight: 600; margin-bottom: .2rem; }
+.combfree { font-size: 9.5px; color: var(--muted); font-style: italic; }
+
+/* questions */
+.qlbl { font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: .6rem; }
+.qlist { display: flex; flex-direction: column; gap: 6px; }
+.qit { background: var(--card); border: 1px solid var(--bdr); border-radius: 6px; padding: .7rem .9rem; font-size: 12px; color: var(--cream); line-height: 1.5; display: flex; align-items: flex-start; gap: 7px; }
+.qarr { font-size: 10px; color: var(--muted); margin-top: 2px; flex-shrink: 0; }
+.rpfoot { padding: .85rem 1.5rem; border-top: 1px solid var(--bdr); font-size: 11px; color: var(--dim); line-height: 1.5; }
+
+/* RIGHT: cube column */
+.ccol { padding: 2.5rem 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.chint { font-size: 12px; color: var(--muted); font-style: italic; margin-bottom: 2rem; text-align: center; }
+
+/* 3D scene */
+.scene { width: 360px; height: 360px; perspective: 900px; margin: 0 auto; }
+.c3d {
+  width: 100%; height: 100%;
+  position: relative; transform-style: preserve-3d;
+  transform: rotateX(-22deg) rotateY(35deg);
+  transition: transform .6s cubic-bezier(.34,1.56,.64,1);
+  cursor: grab;
+}
+.c3d:active { cursor: grabbing; }
+
+/* cube faces */
+.face {
+  position: absolute; width: 220px; height: 220px;
+  border: 2px solid rgba(255,255,255,.15);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer; transition: border-color .25s;
+  overflow: hidden;
+}
+.face-front  { transform: translateZ(110px); }
+.face-back   { transform: rotateY(180deg) translateZ(110px); }
+.face-right  { transform: rotateY(90deg) translateZ(110px); }
+.face-left   { transform: rotateY(-90deg) translateZ(110px); }
+.face-top    { transform: rotateX(90deg) translateZ(110px); }
+.face-bottom { transform: rotateX(-90deg) translateZ(110px); }
+
+/* Rubik's grid */
+.rk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 12px; width: 100%; height: 100%; }
+.rk-cell { border-radius: 3px; }
+
+/* Company (coral) cells */
+.rk-co-1 { background: #E8826B; }
+.rk-co-2 { background: #D4695A; }
+.rk-co-3 { background: #F0A090; }
+
+/* Mineral (amber) cells */
+.rk-mi-1 { background: #F0C96B; }
+.rk-mi-2 { background: #D4A832; }
+.rk-mi-3 { background: #F5D882; }
+
+/* Geography (blue) cells */
+.rk-ge-1 { background: #7EB5CF; }
+.rk-ge-2 { background: #5A9ABF; }
+.rk-ge-3 { background: #9ECFDF; }
+
+/* face hover & highlight */
+.face:hover { border-color: rgba(255,255,255,.4); }
+.face.hl-co { border-color: var(--co); border-width: 3px; }
+.face.hl-mi { border-color: var(--mi); border-width: 3px; }
+.face.hl-ge { border-color: var(--ge); border-width: 3px; }
+.face.hl-all { border-color: rgba(255,255,255,.6); border-width: 3px; }
+
+/* cube controls */
+.chint { margin-top: 1.5rem; }
+
+
+.goal-t { display: block; }
+.goal-d { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; line-height: 1.3; font-weight: 400; }
+
+
+.ind-dot { position: relative; cursor: default; }
+.ind-dot::after {
+  content: attr(data-name);
+  position: absolute; bottom: 140%; left: 50%; transform: translateX(-50%);
+  background: var(--bg); border: 1px solid var(--bdr2);
+  color: var(--cream); font-size: 10px; font-weight: 400;
+  padding: 4px 8px; border-radius: 4px; white-space: nowrap;
+  pointer-events: none; opacity: 0; transition: opacity .15s;
+  z-index: 100;
+}
+.ind-dot:hover::after { opacity: 1; }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--bdr); padding: 1.1rem 3.5rem;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: .5rem; font-size: 11px; color: var(--dim);
+}
+footer strong { color: var(--muted); font-weight: 500; }
+
+/* ── PRINT ── */
+@media print {
+  body { background: white !important; color: black !important; }
+  body::before { display: none !important; }
+  header, .tabs, #tc-arch { display: none !important; }
+  .tc.on { display: block !important; }
+  .sbar { position: static !important; background: white !important; border: none !important; }
+  .sbar-in { border-bottom: 1px solid #ddd; padding-bottom: .5rem; margin-bottom: .5rem; }
+  .sbbtns { display: none !important; }
+  .ctx3 { background: #f9f9f9; border: 1px solid #ddd; }
+  .cx { border-right-color: #ddd; }
+  .cxl { color: #2a7a4a !important; }
+  .cxt { color: #333 !important; }
+  .cxt strong { color: black !important; }
+  .dcmain { padding: 0 !important; max-width: 100% !important; }
+  .dcdim { background: white !important; border: 1px solid #ccc !important; break-inside: avoid; }
+  .dcn { color: black !important; }
+  .dcext { color: #555 !important; }
+  .dcrat { color: #444 !important; border-top-color: #ddd !important; }
+  .dctl { background: #ddd !important; }
+  .dcbnum { color: #aaa !important; }
+  .dcbt { color: #888 !important; border-color: #ddd !important; }
+  .dcblock { break-inside: avoid; }
+  .dcsum { break-before: page; }
+  .stbl { border-color: #ccc !important; }
+  .stbl th.h0 { background: #f5f5f5 !important; color: #666 !important; }
+  .stbl th.h1 { background: #e8f0fe !important; color: #1a56db !important; }
+  .stbl th.h2 { background: #e8f5ee !important; color: #1a7a4a !important; }
+  .stbl th.h3 { background: #fef8e8 !important; color: #9a6a00 !important; }
+  .stbl td { color: black !important; border-color: #eee !important; }
+  .tdim { color: black !important; }
+  footer { display: none !important; }
+  .leg { color: #333 !important; }
+  .ldot { border: 1px solid #ccc; }
+}
+</style>
+</head>
+<body>
+<div class="z">
+
+<!-- HEADER -->
+<header>
+  <div class="hrow">
+    <div>
+      <div class="kicker">Mining Performance Assessment Framework</div>
+      <h1>Design Choices &amp; <em>Risk Architecture</em></h1>
+    </div>
+    <div class="hmeta">
+      University of Edinburgh Business School + AECOM Advisory<br>
+      Mining 2030 Commission &middot; Draft for discussion &middot; May 2026
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tbtn on" onclick="swTab('dc', this)">Design Choices</button>
+    <button class="tbtn" onclick="swTab('arch', this)">Risk Architecture</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════
+     TAB 1: DESIGN CHOICES
+═══════════════════════════════════════════ -->
+<div class="tc on" id="tc-dc">
+
+  <div class="ctx3">
+    <div class="cx">
+      <div class="cxl">What is the MPAF?</div>
+      <div class="cxt">The <strong>Mining Performance Assessment Framework</strong> is a joint initiative by the University of Edinburgh Business School and AECOM Advisory, commissioned by the Mining 2030 Commission. Its purpose is to enable institutional investors to reduce risk exposure through better, comparable mining performance data, anchored in evidence and calibrated to financial materiality.</div>
+    </div>
+    <div class="cx">
+      <div class="cxl">Why these design choices?</div>
+      <div class="cxt">Every tool that tries to serve everyone ends up serving no one well. These eleven choices are where the position taken changes what the tool is, who can use it, and how credible it becomes. The <strong>PoC</strong> (blue, fixed) reflects where we stand today. <strong>MVP</strong> (green) and <strong>Ambition</strong> (amber) are draggable &mdash; move them to reflect your view.</div>
+    </div>
+    <div class="cx">
+      <div class="cxl">How to use this</div>
+      <div class="cxt">Drag the <strong style="color:var(--acc)">green</strong> marker (MVP &middot; Dec 2026) and <strong style="color:var(--mi)">amber</strong> marker (Ambition &middot; 2028+). The <strong style="color:var(--poc)">blue</strong> dot marks the PoC position and is fixed. Use <strong>Save as PDF</strong> to capture your positioning for sharing. There are no right answers &mdash; the goal is to surface disagreements early, before they become design debt.</div>
+    </div>
+  </div>
+
+  <div class="sbar">
+    <div class="sbar-in">
+      <div class="leg"><div class="ldot" style="background:var(--poc)"></div>PoC &mdash; May 2026 (fixed)</div>
+      <div class="leg"><div class="ldot" style="background:var(--acc)"></div>MVP &mdash; Dec 2026</div>
+      <div class="leg"><div class="ldot" style="background:var(--bg);border:2.5px solid var(--mi);outline:1.5px solid var(--mi)"></div>Ambition &mdash; 2028+</div>
+      <div class="sbbtns">
+        <button class="sbbtn" onclick="dcReset()">&#8635; Reset</button>
+        <button class="sbbtn" onclick="window.print()">Save as PDF &nearr;</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dcmain" id="dcmain"></div>
+
+</div><!-- /tc-dc -->
+
+<!-- ═══════════════════════════════════════════
+     TAB 2: RISK ARCHITECTURE
+═══════════════════════════════════════════ -->
+<div class="tc" id="tc-arch">
+
+  <div class="narr">
+    <div class="narrt">From Mining 2030&rsquo;s vision to investor-grade risk intelligence</div>
+    <div class="narr-body">
+      <div class="narr-p"><strong>Mining 2030&rsquo;s ten-year vision and six goals define what responsible mining performance means.</strong> From those goals, the MPAF constructs a set of indicators &mdash; combining top-down corporate disclosures with bottom-up asset-level data, and calibrated against financial materiality. The result is an outcome-oriented performance signal, anchored in evidence.</div>
+      <div class="narr-p"><strong>Those indicators only become actionable when read within context.</strong> A mining company&rsquo;s performance is shaped by the strategic choices it has made &mdash; which minerals to extract, in which geographies, through which ownership structures. The MPAF makes that context explicit through three dimensions: company, mineral, and geography. Comparisons are only meaningful when at least one of those dimensions is held constant.</div>
+      <div class="narr-p"><strong>The ambition is for this framework to anchor the global infrastructure for responsible mining investment</strong> &mdash; and in time, to sit at the foundation of an International Minerals Agency capable of making that intelligence universally accessible.</div>
+    </div>
+
+    <div class="flow">
+      <div class="fcard">
+        <div class="fnum">Step 1 &middot; Foundation</div>
+        <div class="fhead">Mining 2030&rsquo;s six goals define what responsible performance means</div>
+        <div class="goals-grid">
+          <div class="goal-chip"><span class="goal-n">G1</span><div><span class="goal-t">Performance Standards</span><span class="goal-d">Credible, independent assessment of operating practice</span></div></div>
+          <div class="goal-chip"><span class="goal-n">G2</span><div><span class="goal-t">Responsible Value Chains</span><span class="goal-d">Risk management and resilience across supply chains</span></div></div>
+          <div class="goal-chip"><span class="goal-n">G3</span><div><span class="goal-t">Regulatory Environment</span><span class="goal-d">Effective governance frameworks for the mining sector</span></div></div>
+          <div class="goal-chip"><span class="goal-n">G4</span><div><span class="goal-t">Community &amp; Rights</span><span class="goal-d">Meaningful engagement and equitable, sustainable benefits</span></div></div>
+          <div class="goal-chip"><span class="goal-n">G5</span><div><span class="goal-t">Conflict Reduction</span><span class="goal-d">Reducing conflicts linked to mineral extraction</span></div></div>
+          <div class="goal-chip"><span class="goal-n">G6</span><div><span class="goal-t">Legacy Management</span><span class="goal-d">Addressing historic legacies and creating positive ones</span></div></div>
+        </div>
+      </div>
+      <div class="farr">&rarr;</div>
+      <div class="fcard">
+        <div class="fnum">Step 2 &middot; Translation</div>
+        <div class="fhead">Each goal generates indicators &mdash; 50 in total, 8 fully scored in the PoC</div>
+        <div class="ind-wrap" id="ind-wrap"></div>
+        <div class="ind-legend">
+          <span><span class="dot-s"></span>Scored in PoC</span>
+          <span><span class="dot-u"></span>In scope</span>
+        </div>
+      </div>
+      <div class="farr">&rarr;</div>
+      <div class="fcard">
+        <div class="fnum">Step 3 &middot; Analysis</div>
+        <div class="fhead">Indicators evaluated through three lenses &mdash; separately or in combination</div>
+        <div class="axes-wrap">
+          <div class="ax-chip co"><div class="ax-name">Company</div><div class="ax-desc">How well does this operator perform against the six Mining 2030 goals, given the strategic choices it has made?</div></div>
+          <div class="ax-chip mi"><div class="ax-name">Mineral</div><div class="ax-desc">What commodity context has the company chosen &mdash; and what does that mean for the risk profile of any investment in it?</div></div>
+          <div class="ax-chip ge"><div class="ax-name">Geography</div><div class="ax-desc">What jurisdictional context does the company operate in &mdash; and how does that shape what responsible performance looks like in practice?</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arch">
+
+    <!-- LEFT: questions + mini vizzes -->
+    <div class="rpanel">
+      <div class="rph">
+        <div class="rpk">Investor questions &amp; illustrative output</div>
+        <div class="rpt" id="rpt">Company lens &mdash; operator performance</div>
+      </div>
+      <div class="dtabs">
+        <div class="dtab on" data-d="co" onclick="setD('co')">Company</div>
+        <div class="dtab" data-d="mi" onclick="setD('mi')">Mineral</div>
+        <div class="dtab" data-d="ge" onclick="setD('ge')">Geography</div>
+        <div class="dtab" data-d="all" onclick="setD('all')">Combined</div>
+      </div>
+      <div class="rpbody">
+
+        <div class="dsec on" id="ds-co">
+          <div class="dintro">The <strong>Company lens</strong> measures operator performance across the six Mining 2030 goals &mdash; practices, governance, and standards adherence. Read within the context of the company&rsquo;s strategic choices, this is where investor stewardship and engagement drive measurable change.</div>
+          <div class="mviz">
+            <div class="mvizl">Performance trajectory (Anglo American) <span class="viznote">Illustrative &middot; indicative data</span></div>
+            <div class="tl-chart"><svg id="tl-svg" viewBox="0 0 340 100" xmlns="http://www.w3.org/2000/svg"></svg></div>
+            <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">
+              <span style="font-size:9px;color:var(--dim)"><span style="color:var(--co)">&#9644;</span> Performance Standards</span>
+              <span style="font-size:9px;color:var(--dim)"><span style="color:var(--ge)">&#9644;</span> Community &amp; Rights</span>
+              <span style="font-size:9px;color:var(--dim)"><span style="color:var(--mi)">&#9644;</span> Legacy Management</span>
+            </div>
+          </div>
+          <div class="qlbl">Investor questions this lens answers</div>
+          <div class="qlist">
+            <div class="qit"><span class="qarr">&rarr;</span>Who are the best-performing operators across all six Mining 2030 goals?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Is this company&rsquo;s performance trajectory improving &mdash; and across which goals?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Which portfolio holdings are underperforming on manageable risk and warrant engagement?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Which of this company&rsquo;s assets carry the highest site-level risk exposure?</div>
+          </div>
+        </div>
+
+        <div class="dsec" id="ds-mi">
+          <div class="dintro">The <strong>Mineral lens</strong> surfaces the commodity context that shapes any company&rsquo;s operating conditions &mdash; process complexity, supply chain concentration, geopolitical criticality. Understanding this context is what makes performance comparisons across companies meaningful.</div>
+          <div class="mviz">
+            <div class="mvizl">Mineral risk landscape <span class="viznote">Illustrative &middot; indicative data</span></div>
+            <div class="bbl-chart"><svg id="bbl-svg" viewBox="0 0 340 120" xmlns="http://www.w3.org/2000/svg"></svg></div>
+            <div style="display:flex;justify-content:space-between;font-size:8.5px;color:var(--dim);margin-top:3px;padding:0 6px"><span>&larr; Lower strategic importance</span><span>Higher &rarr;</span></div>
+          </div>
+          <div class="qlbl">Investor questions this lens answers</div>
+          <div class="qlist">
+            <div class="qit"><span class="qarr">&rarr;</span>Given cobalt exposure in my portfolio, which operators manage the inherent risks best?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Which critical minerals carry the highest intrinsic risk concentration across my holdings?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Where are the responsible operator gaps in transition mineral supply chains?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>What is my aggregate portfolio exposure to unmanaged commodity risk?</div>
+          </div>
+        </div>
+
+        <div class="dsec" id="ds-ge">
+          <div class="dintro">The <strong>Geography lens</strong> surfaces the jurisdictional context in which a company operates &mdash; regulatory maturity, political stability, and environmental constraints. Holding geography constant is what allows fair comparison of operator performance across different companies.</div>
+          <div class="mviz">
+            <div class="mvizl">Jurisdictional risk heatmap <span class="viznote">Illustrative &middot; indicative data</span></div>
+            <div class="geo-hm" id="geo-hm"></div>
+          </div>
+          <div class="qlbl">Investor questions this lens answers</div>
+          <div class="qlist">
+            <div class="qit"><span class="qarr">&rarr;</span>What is my portfolio&rsquo;s aggregate exposure to jurisdictional risk across all operating geographies?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Which jurisdictions offer the strongest regulatory baseline for responsible copper operations?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Where in Brazil can critical minerals be developed with the lowest responsible performance risk?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Who are the most responsible operators active in high-risk jurisdictions like the DRC?</div>
+          </div>
+        </div>
+
+        <div class="dsec" id="ds-all">
+          <div class="dintro">The framework&rsquo;s full power emerges when all three dimensions are engaged simultaneously &mdash; by equity stewardship teams, fixed income analysts, and index investors alike. Fixing one or two dimensions &mdash; <strong>ceteris paribus</strong> &mdash; is what makes comparisons both rigorous and actionable. These are the questions that require holding context constant before measuring performance.</div>
+          <div class="mviz">
+            <div class="mvizl">Ceteris paribus analysis <span class="viznote">Fix one lens &middot; vary the others</span></div>
+            <div class="comb3">
+              <div class="combcard"><div class="combtit" style="color:var(--co)">Fix Company</div><div class="combfix" style="color:var(--co)">Vale</div><div class="combfree">&updownarrow; Mineral varies<br>&updownarrow; Geography varies</div></div>
+              <div class="combcard"><div class="combtit" style="color:var(--mi)">Fix Mineral</div><div class="combfix" style="color:var(--mi)">Lithium</div><div class="combfree">&updownarrow; Company varies<br>&updownarrow; Geography varies</div></div>
+              <div class="combcard"><div class="combtit" style="color:var(--ge)">Fix Geography</div><div class="combfix" style="color:var(--ge)">Chile</div><div class="combfree">&updownarrow; Company varies<br>&updownarrow; Mineral varies</div></div>
+            </div>
+          </div>
+          <div class="qlbl">Questions only the full framework can answer</div>
+          <div class="qlist">
+            <div class="qit"><span class="qarr">&rarr;</span>Who are the best cobalt operators in the DRC &mdash; controlling for both the commodity and the jurisdiction?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>What is my total portfolio exposure to unmanaged risk in Latin America, across all minerals and companies?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>For Vale specifically &mdash; where are the highest-risk asset-level exposures across minerals and geographies?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>Across the lithium supply chain, which operator-jurisdiction combinations present the best risk-adjusted investment case?</div>
+            <div class="qit"><span class="qarr">&rarr;</span>As a fixed income investor, which issuing entities connected to a mining company &mdash; subsidiaries, SPVs, joint ventures &mdash; carry the highest sustainability risk, and how does that translate into credit quality and KPI-linked instrument design?</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="rpfoot">The PoC (May 2026) addresses the Company lens across 3 companies and 8 indicators. The Mineral and Geography lenses represent the MVP&ndash;Ambition roadmap.</div>
+    </div>
+
+    <!-- RIGHT: cube -->
+    <div class="ccol">
+      <div class="chint">Drag to rotate &middot; Select a lens on the left to explore</div>
+      <div class="scene">
+        <div class="c3d" id="cube">
+          <div class="face face-front"  onclick="setD('co')">
+            <div class="rk"><div class="rk-cell rk-co-2"></div><div class="rk-cell rk-co-1"></div><div class="rk-cell rk-co-3"></div><div class="rk-cell rk-co-1"></div><div class="rk-cell rk-co-3"></div><div class="rk-cell rk-co-2"></div><div class="rk-cell rk-co-3"></div><div class="rk-cell rk-co-2"></div><div class="rk-cell rk-co-1"></div></div>
+          </div>
+          <div class="face face-back"   onclick="setD('co')">
+            <div class="rk"><div class="rk-cell rk-co-1"></div><div class="rk-cell rk-co-3"></div><div class="rk-cell rk-co-2"></div><div class="rk-cell rk-co-3"></div><div class="rk-cell rk-co-2"></div><div class="rk-cell rk-co-1"></div><div class="rk-cell rk-co-2"></div><div class="rk-cell rk-co-1"></div><div class="rk-cell rk-co-3"></div></div>
+          </div>
+          <div class="face face-right"  onclick="setD('mi')">
+            <div class="rk"><div class="rk-cell rk-mi-2"></div><div class="rk-cell rk-mi-1"></div><div class="rk-cell rk-mi-3"></div><div class="rk-cell rk-mi-1"></div><div class="rk-cell rk-mi-3"></div><div class="rk-cell rk-mi-2"></div><div class="rk-cell rk-mi-3"></div><div class="rk-cell rk-mi-2"></div><div class="rk-cell rk-mi-1"></div></div>
+          </div>
+          <div class="face face-left"   onclick="setD('mi')">
+            <div class="rk"><div class="rk-cell rk-mi-1"></div><div class="rk-cell rk-mi-3"></div><div class="rk-cell rk-mi-2"></div><div class="rk-cell rk-mi-3"></div><div class="rk-cell rk-mi-2"></div><div class="rk-cell rk-mi-1"></div><div class="rk-cell rk-mi-2"></div><div class="rk-cell rk-mi-1"></div><div class="rk-cell rk-mi-3"></div></div>
+          </div>
+          <div class="face face-top"    onclick="setD('ge')">
+            <div class="rk"><div class="rk-cell rk-ge-2"></div><div class="rk-cell rk-ge-1"></div><div class="rk-cell rk-ge-3"></div><div class="rk-cell rk-ge-1"></div><div class="rk-cell rk-ge-3"></div><div class="rk-cell rk-ge-2"></div><div class="rk-cell rk-ge-3"></div><div class="rk-cell rk-ge-2"></div><div class="rk-cell rk-ge-1"></div></div>
+          </div>
+          <div class="face face-bottom" onclick="setD('ge')">
+            <div class="rk"><div class="rk-cell rk-ge-1"></div><div class="rk-cell rk-ge-3"></div><div class="rk-cell rk-ge-2"></div><div class="rk-cell rk-ge-3"></div><div class="rk-cell rk-ge-2"></div><div class="rk-cell rk-ge-1"></div><div class="rk-cell rk-ge-2"></div><div class="rk-cell rk-ge-1"></div><div class="rk-cell rk-ge-3"></div></div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+  </div><!-- /arch -->
+</div><!-- /tc-arch -->
+
+<footer>
+  <strong>Mining Performance Assessment Framework (MPAF)</strong> &middot; University of Edinburgh Business School + AECOM Advisory
+  <span>Commissioned by the Mining 2030 Commission &middot; Draft for discussion &mdash; not for external circulation</span>
+</footer>
+
+</div><!-- .z -->
+<script>
+// ══ TAB SWITCHING ══════════════════════════════
+function swTab(id, btn) {
+  document.querySelectorAll('.tc').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('on'));
+  document.getElementById('tc-' + id).classList.add('on');
+  btn.classList.add('on');
+}
+
+// ══ DESIGN CHOICES DATA ════════════════════════
+const DIMS = [
+  { block: 'Who it serves', num: 'I', items: [
+    { id: 'audience',  name: 'Audience',
+      left: 'Investors only', right: 'Multi-stakeholder',
+      poc: 15, mvp: 15, amb: 15,
+      rat: 'The output serves investors across all horizons. Multi-stakeholder governance of the framework builds credibility but does not change who the tool is designed for. "Investor tool first and foremost" is a non-negotiable design constraint.' },
+    { id: 'universe',  name: 'Company universe',
+      left: 'Listed majors', right: 'All inclusive (juniors, private, SOEs)',
+      poc: 10, mvp: 22, amb: 70,
+      rat: 'The PoC covers three listed majors: Glencore, Anglo American, and Vale. The MVP expands cautiously where data is accessible. The ambition is to reach the 90% of companies operating with no formal standard today — where the systemic impact is greatest.' },
+    { id: 'usecase',   name: 'Use case focus',
+      left: 'Single primary use case', right: 'All use cases equally',
+      poc: 20, mvp: 35, amb: 60,
+      rat: 'The PoC demonstrates a single use case: company comparison for stewardship. The MVP serves both equity stewardship and fixed income from the outset — designing for debt only as a later phase would repeat the error made in the Transition Pathway Initiative, which had to retrofit fixed income after the fact. Index integration becomes viable as the indicator set matures.' },
+    { id: 'purpose',   name: 'Purpose',
+      left: 'Benchmark actual performance', right: 'Define expectations',
+      poc: 35, mvp: 45, amb: 55,
+      rat: 'The 0–4 scale benchmarks performance against thresholds that themselves define what good looks like — both are present by design. As adoption and credibility grow, the normative dimension strengthens.' },
+  ]},
+  { block: 'What it delivers', num: 'II', items: [
+    { id: 'output',    name: 'Output form',
+      left: 'Single composite score', right: 'Raw indicator set',
+      poc: 55, mvp: 70, amb: 88,
+      rat: 'The PoC delivers a composite score alongside individual indicators. As one investor put it at the workshop: “there is not going to be much use if we come out with a score that says Mining 2030 gives this company an A.” The ambition is a fully open, configurable indicator set that each investor type integrates into their own process — accessible via API, not only as a dashboard.' },
+    { id: 'riskframe', name: 'Risk framing',
+      left: 'Integrated score', right: 'Intrinsic + manageable separated',
+      poc: 15, mvp: 80, amb: 80,
+      rat: 'The PoC presents an integrated score — intrinsic and manageable risk combined. Separating them is a founding design principle for the MVP: an integrated score conflates two decisions that investors need to make separately.' },
+    { id: 'benchmark', name: 'Benchmark basis',
+      left: 'Universal standard', right: 'Contextualised by commodity / region',
+      poc: 45, mvp: 55, amb: 78,
+      rat: 'The PoC uses universal thresholds to enable comparability. The ambition adds contextualisation by commodity, regulatory maturity, and regional risk profile. The guiding logic: some risk factors are comparable across companies regardless of context (the reputational consequence of a fatality is the same in deep platinum mining as in surface operations); others are intrinsically non-comparable and must be contextualised before any comparison is meaningful.' },
+  ]},
+  { block: 'How it works', num: 'III', items: [
+    { id: 'footprint', name: 'Data footprint',
+      left: 'Existing data only', right: 'Generates new data requirements',
+      poc: 10, mvp: 12, amb: 28,
+      rat: 'The PoC relies entirely on existing public data. Drawing on existing data is a non-negotiable constraint for the MVP — additional reporting burden would undermine adoption. Where critical gaps exist and the investor case is clear, new standardised data points may be justified in later phases.' },
+    { id: 'source',    name: 'Data level',
+      left: 'Corporate disclosure (top-down)', right: 'Site / asset level (bottom-up)',
+      poc: 50, mvp: 65, amb: 85,
+      rat: 'The PoC is primarily top-down. The MVP starts incorporating site-level public data where accessible. The ambition is a genuinely bottom-up, asset-level architecture — where the real investor differentiation lies.' },
+    { id: 'assurance', name: 'Data assurance',
+      left: 'Self-reported / public', right: 'Independently verified',
+      poc: 12, mvp: 20, amb: 78,
+      rat: 'The PoC and MVP rely on publicly available self-reported data — a practical constraint, not a design choice. Until all companies are independently audited against the Global Industry Standard on Tailings Management and the GTMI is providing full independent assurance, data confidence remains limited. Moving toward independent verification is the most significant step-change in the roadmap — and a realistic two-to-five-year horizon.' },
+    { id: 'standards', name: 'Standards relationship',
+      left: 'Defines new standards', right: 'Draws from existing',
+      poc: 85, mvp: 90, amb: 90,
+      rat: 'The MPAF is a framework that draws from existing standards — GISTM, IRMA, CMSI, EU Taxonomy, and Brazil Green Taxonomy — which already collect what companies report. The tool extracts and integrates this into an investor decision layer, adding the so-what that standards alone do not provide.' },
+  ]},
+];
+
+const DEF = {};
+DIMS.forEach(b => b.items.forEach(d => { DEF[d.id] = { mvp: d.mvp, amb: d.amb }; }));
+const S = JSON.parse(JSON.stringify(DEF));
+
+function ql(v, l, r) {
+  if (v <= 20) return l;
+  if (v >= 80) return r;
+  if (v <= 40) return 'Leaning ' + l.split('(')[0].trim().toLowerCase();
+  if (v >= 60) return 'Leaning ' + r.split('(')[0].trim().toLowerCase();
+  return 'Mid-range';
+}
+
+function dcRender() {
+  const el = document.getElementById('dcmain');
+  if (!el) return;
+  let h = '';
+  DIMS.forEach(block => {
+    h += `<div class="dcblock"><div class="dcbh"><span class="dcbnum">${block.num}</span><span class="dcbt">${block.block}</span></div>`;
+    block.items.forEach(d => {
+      const mv = S[d.id].mvp, am = S[d.id].amb;
+      const pts = [{ v: d.poc, c: 'var(--poc)' }, { v: mv, c: 'var(--acc)' }, { v: am, c: 'var(--mi)' }].sort((a, b) => a.v - b.v);
+      let fills = '';
+      for (let i = 0; i < pts.length - 1; i++) {
+        fills += `<div style="position:absolute;height:3px;border-radius:2px;pointer-events:none;left:${pts[i].v}%;width:${pts[i+1].v - pts[i].v}%;background:linear-gradient(to right,${pts[i].c},${pts[i+1].c});opacity:.3;top:50%;margin-top:-1.5px"></div>`;
+      }
+      h += `<div class="dcdim">
+        <div class="dcn">${d.name}</div>
+        <div class="dctw">
+          <div class="dcext">${d.left}</div>
+          <div class="dcto" data-id="${d.id}">
+            <div class="dctl"></div>${fills}
+            <div class="dch ph" style="left:${d.poc}%" title="PoC — May 2026"></div>
+            <div class="dch ah" data-id="${d.id}" data-t="amb" style="left:${am}%"></div>
+            <div class="dch mh" data-id="${d.id}" data-t="mvp" style="left:${mv}%"></div>
+          </div>
+          <div class="dcext r">${d.right}</div>
+        </div>
+        <div class="dcrat">${d.rat}</div>
+      </div>`;
+    });
+    h += '</div>';
+  });
+
+  // Summary table
+  h += `<div class="dcsum">
+    <div class="dcsumt">Positioning summary</div>
+    <table class="stbl">
+      <thead><tr>
+        <th class="h0">Design choice</th>
+        <th class="h1">&#9679; PoC &middot; May 2026</th>
+        <th class="h2">&#9679; MVP &middot; Dec 2026</th>
+        <th class="h3">&#9675; Ambition &middot; 2028+</th>
+      </tr></thead>
+      <tbody id="stbody"></tbody>
+    </table>
+  </div>`;
+  el.innerHTML = h;
+  dcTable();
+  dcAttach();
+}
+
+function dcTable() {
+  const tb = document.getElementById('stbody');
+  if (!tb) return;
+  let r = '';
+  DIMS.forEach(b => b.items.forEach(d => {
+    r += `<tr>
+      <td class="tdim">${d.name}</td>
+      <td class="tpoc">${ql(d.poc, d.left, d.right)}</td>
+      <td class="tmvp" id="dt-mvp-${d.id}">${ql(S[d.id].mvp, d.left, d.right)}</td>
+      <td class="tamb" id="dt-amb-${d.id}">${ql(S[d.id].amb, d.left, d.right)}</td>
+    </tr>`;
+  }));
+  tb.innerHTML = r;
+}
+
+function dcAttach() {
+  document.querySelectorAll('.dch[data-id]').forEach(h => {
+    let drag = false;
+    const s = e => {
+      drag = true; e.preventDefault();
+      document.addEventListener('mousemove', m);
+      document.addEventListener('touchmove', m, { passive: false });
+      document.addEventListener('mouseup', en);
+      document.addEventListener('touchend', en);
+    };
+    const m = e => {
+      if (!drag) return; e.preventDefault();
+      const id = h.dataset.id, t = h.dataset.t;
+      const rect = h.closest('.dcto').getBoundingClientRect();
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      S[id][t] = Math.round(Math.max(0, Math.min(100, ((cx - rect.left) / rect.width) * 100)));
+      dcUpd(id);
+    };
+    const en = () => {
+      drag = false;
+      document.removeEventListener('mousemove', m);
+      document.removeEventListener('touchmove', m);
+      document.removeEventListener('mouseup', en);
+      document.removeEventListener('touchend', en);
+    };
+    h.addEventListener('mousedown', s);
+    h.addEventListener('touchstart', s, { passive: false });
+  });
+}
+
+function dcUpd(id) {
+  const dim = DIMS.flatMap(b => b.items).find(d => d.id === id);
+  const mv = S[id].mvp, am = S[id].amb;
+  document.querySelectorAll(`.dch[data-id="${id}"]`).forEach(h => { h.style.left = S[id][h.dataset.t] + '%'; });
+  const track = document.querySelector(`.dcto[data-id="${id}"]`);
+  track.querySelectorAll('div[style*="gradient"]').forEach(s => s.remove());
+  const pts = [{ v: dim.poc, c: 'var(--poc)' }, { v: mv, c: 'var(--acc)' }, { v: am, c: 'var(--mi)' }].sort((a, b) => a.v - b.v);
+  const ref = track.querySelector('.dctl');
+  for (let i = 0; i < pts.length - 1; i++) {
+    const sg = document.createElement('div');
+    sg.style.cssText = `position:absolute;height:3px;border-radius:2px;pointer-events:none;left:${pts[i].v}%;width:${pts[i+1].v - pts[i].v}%;background:linear-gradient(to right,${pts[i].c},${pts[i+1].c});opacity:.3;top:50%;margin-top:-1.5px`;
+    track.insertBefore(sg, ref.nextSibling);
+  }
+  const mv2 = document.getElementById('dt-mvp-' + id);
+  const am2 = document.getElementById('dt-amb-' + id);
+  if (mv2) mv2.textContent = ql(mv, dim.left, dim.right);
+  if (am2) am2.textContent = ql(am, dim.left, dim.right);
+}
+
+function dcReset() {
+  Object.keys(DEF).forEach(id => { S[id] = { ...DEF[id] }; });
+  dcRender();
+}
+
+// ══ INDICATOR DOTS ═════════════════════════════
+const GOALS_DATA = [
+  { lbl: 'G1 Performance Standards', ids: ['R1.1','R1.2','R1.3','R1.4','R1.5','R1.6','R1.7','R1.8'], scored: ['R1.1','R1.2'] },
+  { lbl: 'G2 Value Chains',          ids: ['R2.1','R2.2','R2.3','R2.4','R2.5','R2.6','R2.7','R2.8'], scored: ['R2.3'] },
+  { lbl: 'G3 Regulatory',            ids: ['R3.1','R3.2','R3.3','R3.4','R3.5','R3.6','R3.7','R3.8','R3.9'], scored: ['R3.4','R3.5','R3.9'] },
+  { lbl: 'G4 Community',             ids: ['R4.1','R4.2','R4.3','R4.4','R4.5','R4.6','R4.7','R4.8','R4.9','R4.10'], scored: ['R4.2','R4.3'] },
+  { lbl: 'G5 Conflict',              ids: ['R5.1','R5.2','R5.3','R5.4','R5.5','R5.6','R5.7'], scored: [] },
+  { lbl: 'G6 Legacy',                ids: ['R6.1','R6.2','R6.3','R6.4','R6.5','R6.6','R6.7'], scored: ['R6.1','R6.3'] },
+];
+function buildDots() {
+  const el = document.getElementById('ind-wrap');
+  if (!el) return;
+  const NAMES = {
+    'R1.1':'Tailings facility classification','R1.2':'GISTM conformance','R1.3':'Safety management system','R1.4':'Safety performance','R1.5':'Climate risk disclosure','R1.6':'GHG emissions','R1.7':'Water stress exposure','R1.8':'Biodiversity risk',
+    'R2.1':'Responsible sourcing policy','R2.2':'Supply chain due diligence','R2.3':'EITI membership & compliance','R2.4':'Downstream transparency','R2.5':'Conflict minerals screening','R2.6':'Artisanal mining engagement','R2.7':'Value chain traceability','R2.8':'Supplier standards alignment',
+    'R3.1':'Regulatory compliance record','R3.2':'Permit management','R3.3':'Environmental impact assessment','R3.4':'Country governance context','R3.5':'Regulatory quality index','R3.6':'Anti-corruption policy','R3.7':'Tax transparency','R3.8':'Political risk exposure','R3.9':'Jurisdictional sustainability index',
+    'R4.1':'Community grievance mechanism','R4.2':'FPIC policy & implementation','R4.3':'Community investment','R4.4':'Land rights management','R4.5':'Indigenous peoples policy','R4.6':'Benefit sharing','R4.7':'Resettlement management','R4.8':'Human rights due diligence','R4.9':'Social impact assessment','R4.10':'Stakeholder engagement quality',
+    'R5.1':'CAHRA presence & management','R5.2':'Security provider conduct','R5.3':'Conflict financing screening','R5.4':'Illegal mineral trade exposure','R5.5':'Armed group linkage screening','R5.6':'Conflict-sensitive procurement','R5.7':'Peace-building contributions',
+    'R6.1':'Mine closure planning','R6.2':'Closure financial provisioning','R6.3':'Rehabilitation commitments','R6.4':'Legacy liability disclosure','R6.5':'Contamination remediation','R6.6':'Post-closure monitoring','R6.7':'Community transition planning',
+  };
+  el.innerHTML = GOALS_DATA.map(g => `
+    <div style="margin-bottom:5px">
+      <div class="ind-goal-lbl">${g.lbl}</div>
+      <div class="ind-dots">${g.ids.map(id => `<div class="ind-dot${g.scored.includes(id) ? ' scored' : ''}" data-name="${id}: ${NAMES[id] || id}"></div>`).join('')}</div>
+    </div>`).join('');
+}
+
+// ══ CUBE ═══════════════════════════════════════
+let rotX = -22, rotY = 35, isDrag = false, lx, ly;
+const cube = document.getElementById('cube');
+
+cube.addEventListener('mousedown', e => { isDrag = true; lx = e.clientX; ly = e.clientY; cube.style.transition = 'none'; });
+document.addEventListener('mousemove', e => {
+  if (!isDrag) return;
+  rotY += (e.clientX - lx) * 0.5; rotX -= (e.clientY - ly) * 0.5;
+  rotX = Math.max(-65, Math.min(65, rotX)); lx = e.clientX; ly = e.clientY;
+  cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+});
+document.addEventListener('mouseup', () => { isDrag = false; cube.style.transition = 'transform .3s ease'; });
+cube.addEventListener('touchstart', e => { lx = e.touches[0].clientX; ly = e.touches[0].clientY; cube.style.transition = 'none'; }, { passive: true });
+cube.addEventListener('touchmove', e => {
+  const dx = e.touches[0].clientX - lx, dy = e.touches[0].clientY - ly;
+  rotY += dx * 0.5; rotX -= dy * 0.5; rotX = Math.max(-65, Math.min(65, rotX));
+  lx = e.touches[0].clientX; ly = e.touches[0].clientY;
+  cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+}, { passive: true });
+document.addEventListener('touchend', () => { cube.style.transition = 'transform .3s ease'; });
+
+let autoRot = setInterval(() => {
+  if (!isDrag) { rotY += 0.2; cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`; }
+}, 30);
+cube.addEventListener('mousedown', () => clearInterval(autoRot));
+cube.addEventListener('touchstart', () => clearInterval(autoRot), { passive: true });
+
+function rTo(p) {
+  clearInterval(autoRot);
+  cube.style.transition = 'transform .6s cubic-bezier(.34,1.56,.64,1)';
+  if (p === 0) { rotX = -22; rotY = 35; }
+  else if (p === 1) { rotX = -15; rotY = 0; }
+  else if (p === 2) { rotX = -15; rotY = -90; }
+  else { rotX = 90; rotY = 0; }
+  cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+}
+
+function setD(d) {
+  clearInterval(autoRot);
+  const map = { co: 0, mi: 1, ge: 2, all: 3 };
+  document.querySelectorAll('.dtab').forEach(t => t.classList.toggle('on', t.dataset.d === d));
+  document.querySelectorAll('.dsec').forEach(s => s.classList.toggle('on', s.id === 'ds-' + d));
+  document.querySelectorAll('.face').forEach(f => { f.classList.remove('hl-co','hl-mi','hl-ge','hl-all'); });
+  const titles = {
+    co: 'Company lens \u2014 operator performance',
+    mi: 'Mineral lens \u2014 strategic commodity context',
+    ge: 'Geography lens \u2014 strategic jurisdictional context',
+    all: 'All three lenses \u2014 context + performance'
+  };
+  document.getElementById('rpt').textContent = titles[d];
+  if (d === 'co') { document.querySelectorAll('.face-front,.face-back').forEach(f => f.classList.add('hl-co')); rTo(1); }
+  else if (d === 'mi') { document.querySelectorAll('.face-right,.face-left').forEach(f => f.classList.add('hl-mi')); rTo(2); }
+  else if (d === 'ge') { document.querySelectorAll('.face-top,.face-bottom').forEach(f => f.classList.add('hl-ge')); rTo(3); }
+  else { document.querySelectorAll('.face').forEach(f => f.classList.add('hl-all')); rTo(0); }
+}
+
+// ══ MINI VIZZES ════════════════════════════════
+function buildTimeline() {
+  const svg = document.getElementById('tl-svg');
+  if (!svg) return;
+  const years = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
+  const W = 340, H = 100, pl = 28, pr = 10, pt = 12, pb = 22;
+  const xs = i => pl + (i / (years.length - 1)) * (W - pl - pr);
+  const ys = v => pt + (1 - v / 4) * (H - pt - pb);
+  const series = [
+    { vals: [1.5,1.8,2.0,2.2,2.4,2.7,2.9], c: 'var(--co)' },
+    { vals: [0.8,1.0,1.2,1.5,1.8,2.0,2.2], c: 'var(--ge)' },
+    { vals: [0.5,0.7,0.9,1.0,1.2,1.5,1.8], c: 'var(--mi)' },
+  ];
+  let h = '';
+  [0,1,2,3,4].forEach(v => {
+    const y = ys(v);
+    h += `<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
+    h += `<text x="${pl-4}" y="${y+3}" text-anchor="end" fill="rgba(255,255,255,.22)" font-size="7">${v}</text>`;
+  });
+  years.forEach((yr, i) => h += `<text x="${xs(i)}" y="${H-5}" text-anchor="middle" fill="rgba(255,255,255,.22)" font-size="7">${yr}</text>`);
+  series.forEach(s => {
+    h += `<polyline points="${s.vals.map((v,i) => `${xs(i)},${ys(v)}`).join(' ')}" fill="none" stroke="${s.c}" stroke-width="1.8" stroke-linejoin="round" opacity=".9"/>`;
+    s.vals.forEach((v, i) => h += `<circle cx="${xs(i)}" cy="${ys(v)}" r="2.5" fill="${s.c}" opacity=".9"/>`);
+  });
+  h += `<text x="${xs(6)+4}" y="${ys(2.9)+3}" fill="var(--co)" font-size="8" font-weight="600">Anglo Am.</text>`;
+  svg.innerHTML = h;
+}
+
+function buildBubbles() {
+  const svg = document.getElementById('bbl-svg');
+  if (!svg) return;
+  const minerals = [
+    { n:'Lithium', x:82, y:28, r:14, c:'var(--co)' },
+    { n:'Cobalt',  x:68, y:18, r:11, c:'var(--co)' },
+    { n:'REE',     x:75, y:55, r:10, c:'var(--mi)' },
+    { n:'Nickel',  x:58, y:52, r:12, c:'var(--co)' },
+    { n:'Copper',  x:48, y:70, r:13, c:'var(--ge)' },
+    { n:'Iron',    x:18, y:82, r:10, c:'var(--ge)' },
+    { n:'Gold',    x:30, y:62, r: 9, c:'var(--mi)' },
+    { n:'Platinum',x:65, y:38, r: 9, c:'var(--mi)' },
+  ];
+  let h = `<line x1="22" y1="8" x2="22" y2="112" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+    <line x1="22" y1="112" x2="334" y2="112" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+    <text x="11" y="62" fill="rgba(255,255,255,.22)" font-size="7" text-anchor="middle" transform="rotate(-90,11,62)">Supply Risk \u2192</text>`;
+  minerals.forEach(m => {
+    const cx = 26 + m.x * 3.04, cy = 8 + (100 - m.y) * 1.02;
+    h += `<circle cx="${cx}" cy="${cy}" r="${m.r}" fill="${m.c}" opacity=".4" stroke="${m.c}" stroke-width="1.2" stroke-opacity=".8"/>`;
+    h += `<text x="${cx}" y="${cy+3.5}" text-anchor="middle" fill="white" font-size="7.5" font-weight="600" opacity=".9">${m.n.length > 7 ? m.n.substring(0,6) + '.' : m.n}</text>`;
+  });
+  svg.innerHTML = h;
+}
+
+function buildGeo() {
+  const el = document.getElementById('geo-hm');
+  if (!el) return;
+  const countries = ['Australia','Chile','Brazil','DRC','South Africa','Indonesia'];
+  const scores = [[88,85,82],[74,70,75],[67,72,62],[20,18,32],[48,40,55],[42,58,38]];
+  const cols = ['Regulatory','Political','Environmental'];
+  function gc(s) { return s >= 70 ? 'rgba(168,216,184,.28)' : s >= 45 ? 'rgba(240,201,107,.28)' : 'rgba(232,130,107,.28)'; }
+  function gt(s) { return s >= 70 ? { c:'var(--acc)', t: s >= 80 ? 'Strong' : 'Good' } : s >= 45 ? { c:'var(--mi)', t: s >= 55 ? 'Moderate' : 'Mixed' } : { c:'var(--co)', t:'High risk' }; }
+  let h = '<div></div>';
+  cols.forEach(c => h += `<div class="geo-hd">${c}</div>`);
+  countries.forEach((cn, i) => {
+    h += `<div class="geo-cn">${cn}</div>`;
+    scores[i].forEach(s => { const t = gt(s); h += `<div class="geo-c" style="background:${gc(s)};color:${t.c}">${t.t}</div>`; });
+  });
+  el.innerHTML = h;
+}
+
+// ══ INIT ═══════════════════════════════════════
+dcRender();
+buildDots();
+buildTimeline();
+buildBubbles();
+buildGeo();
+</script>
+</body>
+</html>
